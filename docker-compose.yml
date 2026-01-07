@@ -1,0 +1,13 @@
+services:
+  pdflight:
+    image: ghcr.io/mirkocompagnoni/pdflight:latest
+    # Per sviluppo locale (builda in locale) commenta "image" e abilita "build"
+    # build: .
+    container_name: pdflight
+    ports:
+      - "9070:8080"
+    environment:
+      - PDFLIGHT_MAX_MB=30
+      - PDFLIGHT_DEFAULT_PRESET=ebook
+      - PDFLIGHT_OCR_DEFAULT=0
+    restart: unless-stopped
