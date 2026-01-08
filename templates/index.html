@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>pdflight</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+
+<body>
+  <main class="page">
+    <section class="card">
+      <header class="header">
+        <h1 class="title">pdflight</h1>
+        <p class="subtitle">Carica un PDF e scarica la versione alleggerita.</p>
+      </header>
+
+      <form class="form" method="post" action="/api/lighten" enctype="multipart/form-data">
+        <div class="grid">
+          <label class="field">
+            <span class="label">Preset</span>
+            <select name="preset">
+              <option value="ebook" selected>ebook (consigliato)</option>
+              <option value="screen">screen</option>
+              <option value="printer">printer</option>
+              <option value="prepress">prepress</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span class="label">OCR</span>
+            <select name="ocr">
+              <option value="0" selected>no</option>
+              <option value="1">sì</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="drop">
+          <input id="file" name="file" type="file" accept="application/pdf" required />
+          <div class="dropInner">
+            <div class="dropTitle">Scegli un PDF</div>
+            <div class="dropHint" id="fileLabel">oppure trascina qui il file</div>
+          </div>
+        </label>
+
+        <button class="btn" type="submit">
+          Alleggerisci
+        </button>
+
+        <p class="api">API: POST <code>/api/lighten?preset=ebook&ocr=0</code> (multipart file)</p>
+      </form>
+    </section>
+  </main>
+
+  <script>
+    const input = document.getElementById("file");
+    const label = document.getElementById("fileLabel");
+    input.addEventListener("change", () => {
+      label.textContent = input.files?.length ? input.files[0].name : "oppure trascina qui il file";
+    });
+  </script>
+</body>
+</html>

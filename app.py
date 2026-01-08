@@ -2,10 +2,17 @@ import os
 import tempfile
 import subprocess
 from pathlib import Path
-from fastapi import FastAPI, UploadFile, File, Query
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi import FastAPI, UploadFile, File, Query, HTTPException
+from fastapi.responses import HTMLResponse, Response
+
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+from fastapi import Request
+
+
 
 APP_NAME = "pdflight"
+
 
 # Env
 MAX_MB = int(os.getenv("PDFLIGHT_MAX_MB", "30"))
@@ -20,62 +27,60 @@ GS_PRESETS = {
 }
 
 app = FastAPI(title=APP_NAME)
+templates = Jinja2Templates(directory="templates")
 
-INDEX_HTML = """
-<!doctype html>
-<html>
-<head><meta charset="utf-8"><title>pdflight</title></head>
-<body style="font-family: sans-serif; max-width: 720px; margin: 40px auto;">
-  <h1>pdflight</h1>
-  <p>Carica un PDF e scarica la versione alleggerita.</p>
-
-  <form action="/api/lighten" method="post" enctype="multipart/form-data">
-    <label>Preset:
-      <select name="preset">
-        <option value="screen">screen (massima compressione)</option>
-        <option value="ebook" selected>ebook (consigliato)</option>
-        <option value="printer">printer (alta qualità)</option>
-        <option value="prepress">prepress (molto alta)</option>
-      </select>
-    </label>
-    <br><br>
-    <label>OCR:
-      <select name="ocr">
-        <option value="0" selected>no</option>
-        <option value="1">sì</option>
-      </select>
-    </label>
-    <br><br>
-    <input type="file" name="file" accept="application/pdf" required />
-    <br><br>
-    <button type="submit">Alleggerisci</button>
-  </form>
-
-  <hr>
-  <p>API: POST <code>/api/lighten?preset=ebook&ocr=0</code> con multipart <code>file</code>.</p>
-</body>
-</html>
-"""
+STATIC_DIR = Path(__file__).parent / "static"
+if STATIC_DIR.is_dir():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 @app.get("/", response_class=HTMLResponse)
-def index():
-    return INDEX_HTML
+def index(request: Request):
+    return templates.TemplateResponse(
+        "index.html",
+        {
+            "request": request,
+            "default_preset": DEFAULT_PRESET,
+            "ocr_default": 1 if ENABLE_OCR_DEFAULT else 0,
+        },
+    )
+
+
+def _safe_decode(b: bytes) -> str:
+    # prova utf-8, se fallisce sostituisce i caratteri non validi
+    return b.decode("utf-8", errors="replace")
 
 def _run(cmd: list[str]) -> None:
-    subprocess.run(cmd, check=True)
+    p = subprocess.run(cmd, capture_output=True)  # <-- niente text=True
+    if p.returncode != 0:
+        stderr = _safe_decode(p.stderr or b"")
+        stdout = _safe_decode(p.stdout or b"")
+        detail = (stderr or stdout or "Command failed").strip()
+        detail = detail[-2000:]
+        raise HTTPException(status_code=400, detail=detail)
+
 
 def _lighten_with_ghostscript(input_pdf: Path, output_pdf: Path, preset: str) -> None:
     gs_setting = GS_PRESETS[preset]
+    out = str(output_pdf.resolve())
     cmd = [
         "gs",
         "-sDEVICE=pdfwrite",
         "-dCompatibilityLevel=1.4",
         f"-dPDFSETTINGS={gs_setting}",
-        "-dNOPAUSE", "-dQUIET", "-dBATCH",
-        f"-sOutputFile={str(output_pdf)}",
+        "-dSAFER",
+        "-dNOPAUSE", "-dBATCH",
+        "-sOutputFile=" + out,
         str(input_pdf),
     ]
+    print("GS CMD:", cmd)
     _run(cmd)
+    print("GS OUTPUT EXISTS?", output_pdf.exists(), "SIZE:", output_pdf.stat().st_size if output_pdf.exists() else -1)
+    if not output_pdf.exists() or output_pdf.stat().st_size == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Ghostscript did not produce output PDF (output_pdf missing or empty)."
+        )
+
 
 def _ocr_optimize(input_pdf: Path, output_pdf: Path) -> None:
     # ocrmypdf --optimize 3 è un buon compromesso
@@ -102,6 +107,8 @@ async def lighten(
         in_pdf.write_bytes(data)
 
         _lighten_with_ghostscript(in_pdf, mid_pdf, preset)
+        if not mid_pdf.exists() or mid_pdf.stat().st_size == 0:
+           raise HTTPException(400, "Ghostscript did not produce output PDF (mid_pdf missing or empty).")
 
         if ocr == 1:
             # OCR può anche aumentare un filo il peso se il PDF è già super compresso,
@@ -110,9 +117,18 @@ async def lighten(
         else:
             out_pdf = mid_pdf
 
-        download_name = f"pdflight_{preset}{'_ocr' if ocr==1 else ''}.pdf"
-        return FileResponse(
-            path=str(out_pdf),
-            media_type="application/pdf",
-            filename=download_name,
-        )
+        original_name = Path(file.filename).stem
+        original_ext  = Path(file.filename).suffix
+
+        suffix = "_light"
+        if ocr == 1:
+           suffix += "_ocr"
+
+        download_name = f"{original_name}{suffix}{original_ext}"
+
+        pdf_bytes = out_pdf.read_bytes()   # <-- IMPORTANTISSIMO: leggi dentro il with
+
+        headers = {
+            "Content-Disposition": f'attachment; filename="{download_name}"'
+        }
+        return Response(content=pdf_bytes, media_type="application/pdf", headers=headers)

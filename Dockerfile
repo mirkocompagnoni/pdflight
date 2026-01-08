@@ -11,6 +11,8 @@ COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py /app/
+COPY templates /app/templates
+COPY static /app/static
 
 ENV PYTHONUNBUFFERED=1
 ENV PDFLIGHT_MAX_MB=30

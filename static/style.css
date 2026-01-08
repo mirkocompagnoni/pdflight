@@ -1,0 +1,120 @@
+:root{
+  --bg1:#0b1020;
+  --bg2:#0a1633;
+  --card:#0e1b38cc;
+  --border:#ffffff1a;
+  --text:#e8eefc;
+  --muted:#b9c6e6;
+  --accent:#3b82f6;
+  --accent2:#60a5fa;
+}
+
+*{ box-sizing:border-box; }
+html,body{ height:100%; }
+body{
+  margin:0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  color:var(--text);
+  background:
+    radial-gradient(1200px 600px at 20% 10%, #1b2a55 0%, transparent 60%),
+    radial-gradient(900px 500px at 85% 15%, #163a6a 0%, transparent 60%),
+    linear-gradient(180deg, var(--bg1), var(--bg2));
+}
+
+.page{
+  min-height:100%;
+  display:grid;
+  place-items:center;
+  padding:28px 16px;
+}
+
+.card{
+  width:min(720px, 100%);
+  background:linear-gradient(180deg, #0e1b38e6, #0b1530e6);
+  border:1px solid var(--border);
+  border-radius:18px;
+  box-shadow:0 20px 60px #00000055;
+  padding:22px;
+  backdrop-filter: blur(10px);
+}
+
+.header{ margin-bottom:18px; }
+.title{
+  margin:0;
+  font-size:44px;
+  letter-spacing:-0.5px;
+}
+.subtitle{
+  margin:8px 0 0 0;
+  color:var(--muted);
+  line-height:1.4;
+}
+
+.form{ display:grid; gap:14px; }
+
+.grid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:12px;
+}
+@media (max-width:520px){
+  .grid{ grid-template-columns:1fr; }
+}
+
+.field{ display:grid; gap:6px; }
+.label{
+  font-size:13px;
+  color:var(--muted);
+}
+
+select{
+  width:100%;
+  height:40px;
+  padding:0 12px;
+  border-radius:12px;
+  border:1px solid var(--border);
+  background:#0b1530;
+  color:var(--text);
+  outline:none;
+}
+
+.drop{
+  border:1px dashed #ffffff33;
+  border-radius:16px;
+  padding:14px;
+  background:#0b1530aa;
+  cursor:pointer;
+}
+.drop:hover{ border-color:#ffffff55; }
+.drop input{ display:none; }
+.dropInner{
+  display:grid;
+  gap:4px;
+  text-align:center;
+  padding:14px 10px;
+}
+.dropTitle{ font-weight:700; }
+.dropHint{ color:var(--muted); font-size:13px; }
+
+.btn{
+  height:44px;
+  border:none;
+  border-radius:14px;
+  background: linear-gradient(180deg, var(--accent), var(--accent2));
+  color:white;
+  font-weight:700;
+  cursor:pointer;
+}
+.btn:hover{ filter:brightness(1.05); }
+
+.api{
+  margin:6px 0 0 0;
+  color:var(--muted);
+  font-size:12px;
+}
+code{
+  background:#00000033;
+  border:1px solid var(--border);
+  padding:2px 6px;
+  border-radius:10px;
+}

@@ -1,8 +1,7 @@
 services:
   pdflight:
-    image: ghcr.io/mirkocompagnoni/pdflight:latest
-    # Per sviluppo locale (builda in locale) commenta "image" e abilita "build"
-    # build: .
+    build: .
+    # image: ghcr.io/mirkocompagnoni/pdflight:latest
     container_name: pdflight
     ports:
       - "9070:8080"
