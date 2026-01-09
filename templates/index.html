@@ -4,16 +4,31 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>pdflight</title>
+
+  <!-- Favicon -->
+  <link rel="icon" href="/static/favicon/favicon.ico">
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon/favicon-16x16.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon/favicon-32x32.png">
+  <link rel="apple-touch-icon" href="/static/favicon/apple-touch-icon.png">
+  <link rel="manifest" href="/static/favicon/site.webmanifest">
+
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 
 <body>
   <main class="page">
     <section class="card">
-      <header class="header">
-        <h1 class="title">pdflight</h1>
-        <p class="subtitle">Carica un PDF e scarica la versione alleggerita.</p>
+
+     <header class="header">
+        <div class="brand">
+           <img src="/static/img/pdflight-logo.png" alt="pdflight logo" class="logo" />
+           <div>
+              <h1 class="title">pdflight</h1>
+              <p class="subtitle">Carica un PDF e scarica la versione alleggerita.</p>
+           </div>
+         </div>
       </header>
+
 
       <form class="form" method="post" action="/api/lighten" enctype="multipart/form-data">
         <div class="grid">

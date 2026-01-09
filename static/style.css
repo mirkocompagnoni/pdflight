@@ -118,3 +118,19 @@ code{
   padding:2px 6px;
   border-radius:10px;
 }
+
+
+
+.brand{
+  display:flex;
+  align-items:center;
+  gap:14px;
+}
+
+.logo{
+  width:64px;
+  margin:0;
+}
+
+
+
