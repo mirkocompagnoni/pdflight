@@ -2,9 +2,13 @@ FROM python:3.12-slim
 
 # System deps: ghostscript + ocrmypdf (che tira dentro tesseract e poppler utils a seconda della distro)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ghostscript \
-    ocrmypdf \
-    && rm -rf /var/lib/apt/lists/*
+  ghostscript \
+  ocrmypdf \
+  pngquant \
+  unpaper \
+  tesseract-ocr-ita \
+  tesseract-ocr-eng \
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY requirements.txt /app/

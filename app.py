@@ -2,7 +2,7 @@ import os
 import tempfile
 import subprocess
 from pathlib import Path
-from fastapi import FastAPI, UploadFile, File, Query, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import HTMLResponse, Response
 
 from fastapi.templating import Jinja2Templates
@@ -83,16 +83,48 @@ def _lighten_with_ghostscript(input_pdf: Path, output_pdf: Path, preset: str) ->
 
 
 def _ocr_optimize(input_pdf: Path, output_pdf: Path) -> None:
-    # ocrmypdf --optimize 3 è un buon compromesso
-    cmd = ["ocrmypdf", "--optimize", "3", "--deskew", str(input_pdf), str(output_pdf)]
+    cmd = [
+        "ocrmypdf",
+        "--force-ocr",
+        "-l", "ita+eng",
+
+        # per scansioni tipo "Tecnocasa" (spesso ruotate / impaginate)
+        "--rotate-pages",
+        "--rotate-pages-threshold", "2",
+
+        # migliora su testo piccolo e pagine ricche di immagini
+        "--deskew",
+        "--clean",
+        "--oversample", "400",
+
+        "--optimize", "3",
+        str(input_pdf),
+        str(output_pdf),
+    ]
     _run(cmd)
 
+
+
+@app.post("/api/lighten")
 @app.post("/api/lighten")
 async def lighten(
     file: UploadFile = File(...),
-    preset: str = Query(DEFAULT_PRESET, pattern="^(screen|ebook|printer|prepress)$"),
-    ocr: int = Query(1 if ENABLE_OCR_DEFAULT else 0, ge=0, le=1),
+    preset: str = Form(DEFAULT_PRESET),
+    ocr: int = Form(1 if ENABLE_OCR_DEFAULT else 0),
 ):
+    # normalizza e valida (Form non fa pattern/ge/le come Query)
+    preset = (preset or DEFAULT_PRESET).strip().lower()
+    if preset not in GS_PRESETS:
+        raise HTTPException(status_code=400, detail=f"Invalid preset: {preset}")
+
+    try:
+        ocr = int(ocr)
+    except Exception:
+        ocr = 0
+    if ocr not in (0, 1):
+        raise HTTPException(status_code=400, detail="Invalid ocr value (use 0 or 1).")
+
+
     # Basic guard
     data = await file.read()
     if len(data) > MAX_MB * 1024 * 1024:
