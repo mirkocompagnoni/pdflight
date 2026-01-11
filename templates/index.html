@@ -13,44 +13,214 @@
   <link rel="manifest" href="/static/favicon/site.webmanifest">
 
   <link rel="stylesheet" href="/static/style.css" />
+
+  <!-- Extra CSS per accordion OCR + switch -->
+  <style>
+    /* Switch ON/OFF */
+    .switch {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+      cursor: pointer;
+    }
+    .switch input { display: none; }
+    .slider {
+      width: 42px;
+      height: 22px;
+      background: rgba(255,255,255,0.25);
+      border-radius: 999px;
+      position: relative;
+      transition: background 0.2s ease;
+      flex: 0 0 auto;
+    }
+    .slider::before {
+      content: "";
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 2px;
+      top: 2px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.2s ease;
+    }
+    .switch input:checked + .slider { background: #4f8cff; }
+    .switch input:checked + .slider::before { transform: translateX(20px); }
+    .switchLabel { user-select: none; }
+
+    /* OCR accordion */
+    .details {
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .details summary {
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      user-select: none;
+    }
+    .details summary::-webkit-details-marker { display: none; }
+
+    .detailsTitle {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+    }
+    .pill {
+      font-size: 0.82rem;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.10);
+      border: 1px solid rgba(255,255,255,0.14);
+      opacity: 0.9;
+      white-space: nowrap;
+    }
+    .detailsBody { margin-top: 12px; }
+
+    .grid2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    @media (max-width: 820px) {
+      .grid2 { grid-template-columns: 1fr; }
+    }
+  </style>
 </head>
 
 <body>
   <main class="page">
     <section class="card">
 
-     <header class="header">
+      <header class="header">
         <div class="brand">
-           <img src="/static/img/pdflight-logo.png" alt="pdflight logo" class="logo" />
-           <div>
-              <h1 class="title">pdflight</h1>
-              <p class="subtitle">Carica un PDF e scarica la versione alleggerita.</p>
-           </div>
-         </div>
+          <img src="/static/img/pdflight-logo.png" alt="pdflight logo" class="logo" />
+          <div>
+            <h1 class="title">pdflight</h1>
+            <p class="subtitle">Carica un PDF e scarica la versione alleggerita.</p>
+          </div>
+        </div>
       </header>
 
-
       <form class="form" method="post" action="/api/lighten" enctype="multipart/form-data">
+
+        <!-- LIVELLO 1: qualità + migliorie -->
         <div class="grid">
           <label class="field">
-            <span class="label">Preset</span>
-            <select name="preset">
-              <option value="ebook" selected>ebook (consigliato)</option>
-              <option value="screen">screen</option>
-              <option value="printer">printer</option>
-              <option value="prepress">prepress</option>
+            <span class="label">Obiettivo</span>
+            <select name="preset" id="preset">
+              <option value="ebook">Leggero (più compresso)</option>
+              <option value="screen">Bilanciato (consigliato)</option>
+              <option value="printer" selected>Qualità (più definito)</option>
             </select>
+            <span class="subhint">
+              Esempi: scansioni e dispense → <b>Leggero</b>; documenti normali → <b>Bilanciato</b>; grafici/foto → <b>Qualità</b>.
+            </span>
           </label>
 
-          <label class="field">
-            <span class="label">OCR</span>
-            <select name="ocr">
-              <option value="0" selected>no</option>
-              <option value="1">sì</option>
-            </select>
-          </label>
+          <!-- Lasciamo questo spazio libero nel livello 1 per mantenere l'aria "pulita".
+               (In alternativa qui potresti mettere un riepilogo). -->
+          <div></div>
         </div>
 
+        <div class="options">
+
+
+        <div class="subhint" style="margin-bottom:10px;">
+          <b>Livello 1:</b> qualità finale e ottimizzazione sicura per PDF da scanner.
+        </div>
+
+        <!-- Clean resta in Livello 1 -->
+        <label class="switch">
+          <input type="checkbox" id="clean" checked>
+          <span class="slider"></span>
+          <span class="switchLabel">Pulizia PDF (consigliata)</span>
+        </label>
+        <input type="hidden" name="clean" id="clean_val" value="1">
+
+
+
+
+          <!-- Tempo stimato sempre visibile -->
+          <div class="eta">
+            <div class="etaHeader">
+              <strong>Tempo stimato:</strong> <span id="etaValue">3</span>/10
+              <span id="etaText" class="etaText">Veloce</span>
+            </div>
+            <div class="etaBar"><div id="etaFill" class="etaFill"></div></div>
+            <div class="subhint">Stima indicativa: dipende anche da numero pagine e potenza del server.</div>
+          </div>
+
+          <!-- LIVELLO 2: OCR (accordion) -->
+          <details class="details" id="ocrDetails">
+            <summary>
+              <span class="detailsTitle">
+                OCR (opzionale)
+                <span class="pill" id="ocrPill">Più lento</span>
+              </span>
+              <span class="pill" id="ocrStatePill">Off</span>
+            </summary>
+
+            <div class="detailsBody">
+              <div class="subhint" style="margin-bottom:10px;">
+                <b>Livello 2:</b> utile per archiviazione: ricerca (Ctrl+F) e copia/incolla con qualche limite.
+              </div>
+
+              <div class="grid2">
+                <label class="field">
+                  <span class="label">PDF ricercabile (OCR)</span>
+                  <select name="ocr" id="ocr">
+                    <option value="0" selected>No (più veloce)</option>
+                    <option value="1">Sì (più lento)</option>
+                  </select>
+                  <span class="subhint">Aggiunge un livello di testo invisibile per cercare con Ctrl+F.</span>
+                </label>
+
+
+                <!-- Switch OCR-only: Autorotate -->
+                <label class="switch">
+                  <input type="checkbox" id="autorotate" checked>
+                  <span class="slider"></span>
+                  <span class="switchLabel">Autorotazione pagine</span>
+                </label>
+                <input type="hidden" name="autorotate" id="autorotate_val" value="1">
+
+                <!-- Switch OCR-only: Deskew -->
+                <label class="switch">
+                  <input type="checkbox" id="deskew" checked>
+                  <span class="slider"></span>
+                  <span class="switchLabel">Raddrizza pagine (deskew)</span>
+                </label>
+                <input type="hidden" name="deskew" id="deskew_val" value="1">
+
+                <div class="subhint" style="margin-top:6px;">
+                  Queste opzioni analizzano il contenuto: disponibili solo con OCR.
+                </div>
+
+
+                <label class="field">
+                  <span class="label">Oversample OCR</span>
+                  <input type="range" id="oversample" name="oversample" min="1" max="4" step="1" value="2">
+                  <div class="subhint">
+                    Qualità OCR: <span id="oversampleLabel">2x</span> (più alto = più lento).
+                    <span class="muted">Attivo solo con OCR.</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </details>
+
+        </div>
+
+        <!-- Upload -->
         <label class="drop">
           <input id="file" name="file" type="file" accept="application/pdf" required />
           <div class="dropInner">
@@ -63,17 +233,143 @@
           Alleggerisci
         </button>
 
-        <p class="api">API: POST <code>/api/lighten?preset=ebook&ocr=0</code> (multipart file)</p>
+        <p class="api">
+          API: POST <code id="apiExample">/api/lighten?preset=screen&ocr=0&autorotate=1&deskew=1&clean=1&oversample=2</code> (multipart file)
+        </p>
       </form>
     </section>
   </main>
 
+  <!-- File label -->
   <script>
     const input = document.getElementById("file");
     const label = document.getElementById("fileLabel");
     input.addEventListener("change", () => {
       label.textContent = input.files?.length ? input.files[0].name : "oppure trascina qui il file";
     });
+  </script>
+
+  <!-- UI logic -->
+  <script>
+  (function(){
+    const presetEl = document.getElementById('preset');
+
+    const autorotateEl = document.getElementById('autorotate');
+    const deskewEl = document.getElementById('deskew');
+    const cleanEl = document.getElementById('clean');
+
+    const ocrDetailsEl = document.getElementById('ocrDetails');
+    const ocrEl = document.getElementById('ocr');
+    const oversampleEl = document.getElementById('oversample');
+    const oversampleLabelEl = document.getElementById('oversampleLabel');
+
+    const ocrStatePillEl = document.getElementById('ocrStatePill');
+
+    const etaValueEl = document.getElementById('etaValue');
+    const etaFillEl = document.getElementById('etaFill');
+    const etaTextEl = document.getElementById('etaText');
+    const apiExampleEl = document.getElementById('apiExample');
+
+    function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
+
+    function labelForEta(v){
+      if (v <= 3) return "Veloce";
+      if (v <= 6) return "Medio";
+      if (v <= 8) return "Lento";
+      return "Molto lento";
+    }
+
+    function presetCost(p){
+      // leggero/bilanciato/qualità: costi minimi
+      if (p === 'printer') return 1;
+      return 0;
+    }
+
+    function oversampleCost(os){
+      // 1->0, 2->1, 3->2, 4->3
+      return Math.max(0, os - 1);
+    }
+
+
+
+    function updateUi(){
+      const ocrOn = ocrEl.value === '1';
+
+      // Accordion OCR: se vuoi che si apra solo quando serve
+      // (se preferisci lasciare apertura manuale, dimmelo e lo togliamo)
+      ocrDetailsEl.open = ocrOn;
+
+      // Stato pill
+      ocrStatePillEl.textContent = ocrOn ? "On" : "Off";
+
+      // Oversample solo con OCR
+      oversampleEl.disabled = !ocrOn;
+
+      // Autorotate + Deskew: solo con OCR
+      autorotateEl.disabled = !ocrOn;
+      deskewEl.disabled = !ocrOn;
+
+      // Se OCR è OFF, forzo a false (così backend riceve 0 e la UI è coerente)
+      if (!ocrOn) {
+        autorotateEl.checked = false;
+        deskewEl.checked = false;
+      }
+
+      const os = parseInt(oversampleEl.value, 10);
+      oversampleLabelEl.textContent = os + "x";
+
+      // Tempo stimato
+      let eta = 2; // base
+      eta += presetCost(presetEl.value);
+
+      // Clean è Livello 1 → conta sempre
+      if (cleanEl.checked) eta += 1;
+
+      // Autorotate/deskew contano SOLO se OCR è ON
+      if (ocrOn) {
+        if (autorotateEl.checked) eta += 1;
+        if (deskewEl.checked) eta += 1;
+
+        eta += 4;               // costo OCR
+        eta += oversampleCost(os);
+      }
+
+      eta = clamp(eta, 1, 10);
+      etaValueEl.textContent = eta;
+      etaTextEl.textContent = labelForEta(eta);
+      etaFillEl.style.width = (eta * 10) + "%";
+
+      // Hidden fields (0/1) per backend
+      document.getElementById('clean_val').value = cleanEl.checked ? '1' : '0';
+      document.getElementById('autorotate_val').value = (ocrOn && autorotateEl.checked) ? '1' : '0';
+      document.getElementById('deskew_val').value     = (ocrOn && deskewEl.checked) ? '1' : '0';
+
+      // API example
+      const qs = new URLSearchParams();
+      qs.set('preset', presetEl.value);
+      qs.set('ocr', ocrOn ? '1' : '0');
+      qs.set('clean', cleanEl.checked ? '1' : '0');
+      qs.set('autorotate', (ocrOn && autorotateEl.checked) ? '1' : '0');
+      qs.set('deskew', (ocrOn && deskewEl.checked) ? '1' : '0');
+      qs.set('oversample', String(os));
+      apiExampleEl.textContent = "/api/lighten?" + qs.toString();
+    }
+
+
+
+
+
+    // listeners
+    cleanEl.addEventListener('change', updateUi);
+    ocrEl.addEventListener('change', updateUi);
+    autorotateEl.addEventListener('change', updateUi);
+    deskewEl.addEventListener('change', updateUi);
+    oversampleEl.addEventListener('input', updateUi);
+    presetEl.addEventListener('change', updateUi);
+
+
+    updateUi();
+  })();
   </script>
 </body>
 </html>

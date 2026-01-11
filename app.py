@@ -82,35 +82,70 @@ def _lighten_with_ghostscript(input_pdf: Path, output_pdf: Path, preset: str) ->
         )
 
 
-def _ocr_optimize(input_pdf: Path, output_pdf: Path) -> None:
+
+def _qpdf_clean(input_pdf: Path, output_pdf: Path) -> None:
+    """
+    Pulizia/ottimizzazione "safe" senza OCR: non rasterizza e non altera layout/pagine.
+    Richiede qpdf installato nel sistema/container.
+    """
     cmd = [
-        "ocrmypdf",
-        "--force-ocr",
-        "-l", "ita+eng",
-
-        # per scansioni tipo "Tecnocasa" (spesso ruotate / impaginate)
-        "--rotate-pages",
-        "--rotate-pages-threshold", "2",
-
-        # migliora su testo piccolo e pagine ricche di immagini
-        "--deskew",
-        "--clean",
-        "--oversample", "400",
-
-        "--optimize", "3",
+        "qpdf",
+        "--object-streams=generate",
+        "--stream-data=compress",
         str(input_pdf),
         str(output_pdf),
     ]
     _run(cmd)
 
+def _ocr_optimize(
+    input_pdf: Path,
+    output_pdf: Path,
+    *,
+    do_ocr: bool,
+    autorotate: bool,
+    deskew: bool,
+    clean: bool,
+    oversample_level: int,
+) -> None:
+    # oversample in ocrmypdf is expressed in DPI. We expose a simple 1..4 slider.
+    oversample_map = {1: 150, 2: 300, 3: 400, 4: 600}
+    oversample_level = int(oversample_level or 2)
+    oversample_level = max(1, min(4, oversample_level))
+    oversample_dpi = oversample_map[oversample_level]
 
+    cmd = ["ocrmypdf"]
 
-@app.post("/api/lighten")
+    # OCR layer
+    if do_ocr:
+        cmd += ["--force-ocr", "-l", "ita+eng"]
+    else:
+        # NOTE: ocrmypdf does not provide a true "no OCR but apply preprocessing" mode.
+        # Using --skip-text avoids re-OCRing pages that already contain text.
+        cmd += ["--skip-text"]
+
+    # Page preprocessing
+    if autorotate:
+        cmd += ["--rotate-pages", "--rotate-pages-threshold", "2"]
+    if deskew:
+        cmd += ["--deskew"]
+    if clean:
+        cmd += ["--clean"]
+
+    if do_ocr:
+        cmd += ["--oversample", str(oversample_dpi)]
+
+    cmd += ["--optimize", "3", str(input_pdf), str(output_pdf)]
+    _run(cmd)
+
 @app.post("/api/lighten")
 async def lighten(
     file: UploadFile = File(...),
     preset: str = Form(DEFAULT_PRESET),
     ocr: int = Form(1 if ENABLE_OCR_DEFAULT else 0),
+    autorotate: int = Form(0),
+    deskew: int = Form(0),
+    clean: int = Form(1),
+    oversample: int = Form(2),
 ):
     # normalizza e valida (Form non fa pattern/ge/le come Query)
     preset = (preset or DEFAULT_PRESET).strip().lower()
@@ -124,11 +159,32 @@ async def lighten(
     if ocr not in (0, 1):
         raise HTTPException(status_code=400, detail="Invalid ocr value (use 0 or 1).")
 
+    try:
+        autorotate = int(autorotate)
+    except Exception:
+        autorotate = 0
+    try:
+        deskew = int(deskew)
+    except Exception:
+        deskew = 0
+    try:
+        clean = int(clean)
+    except Exception:
+        clean = 1
+    try:
+        oversample = int(oversample)
+    except Exception:
+        oversample = 2
+
+    autorotate = 1 if autorotate else 0
+    deskew = 1 if deskew else 0
+    clean = 1 if clean else 0
+    oversample = max(1, min(4, oversample))
 
     # Basic guard
     data = await file.read()
     if len(data) > MAX_MB * 1024 * 1024:
-        raise ValueError(f"File troppo grande (> {MAX_MB} MB).")
+        raise HTTPException(status_code=413, detail=f"File troppo grande (> {MAX_MB} MB).")
 
     with tempfile.TemporaryDirectory(prefix="pdflight_") as tmp:
         tmpdir = Path(tmp)
@@ -142,12 +198,30 @@ async def lighten(
         if not mid_pdf.exists() or mid_pdf.stat().st_size == 0:
            raise HTTPException(400, "Ghostscript did not produce output PDF (mid_pdf missing or empty).")
 
+        # --- Pipeline ---
+        # Livello 2 (OCR=1): analisi contenuto -> autorotate/deskew/clean/oversample
+        # Livello 1 (OCR=0): niente ocrmypdf (evita artefatti sulle scansioni); solo compressione + pulizia safe
+
+        # Se OCR è OFF, autorotate/deskew non devono avere effetto (sono opzioni del livello OCR)
+        if ocr == 0:
+            autorotate = 0
+            deskew = 0
+
         if ocr == 1:
-            # OCR può anche aumentare un filo il peso se il PDF è già super compresso,
-            # ma in genere migliora ricerca e spesso riduce ancora.
-            _ocr_optimize(mid_pdf, out_pdf)
+            _ocr_optimize(
+                mid_pdf, out_pdf,
+                do_ocr=True,
+                autorotate=bool(autorotate),
+                deskew=bool(deskew),
+                clean=bool(clean),
+                oversample_level=oversample,
+            )
         else:
-            out_pdf = mid_pdf
+            # OCR OFF: evita ocrmypdf. Applica solo una pulizia "safe" se richiesta.
+            if bool(clean):
+                _qpdf_clean(mid_pdf, out_pdf)
+            else:
+                out_pdf = mid_pdf
 
         original_name = Path(file.filename).stem
         original_ext  = Path(file.filename).suffix
@@ -155,6 +229,8 @@ async def lighten(
         suffix = "_light"
         if ocr == 1:
            suffix += "_ocr"
+        elif bool(clean):
+           suffix += "_opt"
 
         download_name = f"{original_name}{suffix}{original_ext}"
 
